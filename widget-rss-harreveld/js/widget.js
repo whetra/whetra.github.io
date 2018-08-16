@@ -1373,6 +1373,7 @@ RiseVision.Common.Scroller = function (params) {
     _items = [],
     _xpos = 0,
     _originalXpos = 0,
+    _oversizedCanvas = false,
     _utils = RiseVision.Common.Utilities,
     MAX_CANVAS_SIZE = 32767;
 
@@ -1386,11 +1387,12 @@ RiseVision.Common.Scroller = function (params) {
     fillScroller();
 
     if (_xpos > MAX_CANVAS_SIZE) {
+      _oversizedCanvas = true;
+      _secondary.width = MAX_CANVAS_SIZE;
       throwOversizedCanvesError();
+    } else {
+      _secondary.width = _xpos;
     }
-
-    // Width of the secondary canvas needs to equal the width of all of the text.
-    _secondary.width = _xpos;
 
     // Setting the width again resets the canvas so it needs to be redrawn.
     drawItems();
@@ -1434,7 +1436,7 @@ RiseVision.Common.Scroller = function (params) {
     _secondaryCtx.restore();
   }
 
-  function drawItem(item) {
+  function drawItem(item, isEllipsis) {
     var textObj = {},
       fontStyle;
 
@@ -1463,9 +1465,17 @@ RiseVision.Common.Scroller = function (params) {
         if (fontStyle.italic) {
           textObj.italic = fontStyle.italic;
         }
+
+        if (fontStyle.backcolor && isEllipsis) {
+          textObj.backcolor = fontStyle.backcolor;
+        }
       }
 
-      drawText(textObj);
+      if (isEllipsis) {
+        drawEllipsis(textObj);
+      } else {
+        drawText(textObj);
+      }
     }
   }
 
@@ -1504,6 +1514,50 @@ RiseVision.Common.Scroller = function (params) {
     _secondaryCtx.restore();
   }
 
+  function drawEllipsis(ellipsisObj) {
+    var font = "",
+      ellipsisWidth,
+      rectHeight;
+
+    _secondaryCtx.save();
+
+    if (ellipsisObj.bold) {
+      font = "bold ";
+    }
+
+    if (ellipsisObj.italic) {
+      font += "italic ";
+    }
+
+    if (ellipsisObj.size) {
+      font += ellipsisObj.size + " ";
+    }
+
+    if (ellipsisObj.font) {
+      font += ellipsisObj.font;
+    }
+
+    // Set the text formatting.
+    _secondaryCtx.font = font;
+    _secondaryCtx.textBaseline = "middle";
+
+    ellipsisWidth = _secondaryCtx.measureText("  ...  ").width;
+    rectHeight = ellipsisObj.size ? ((ellipsisObj.size.indexOf("px") > 0) ? parseInt(ellipsisObj.size.slice(0, ellipsisObj.size.indexOf("px")), 10) : ellipsisObj.size) : 10;
+
+    _secondaryCtx.translate(0, _secondary.height / 2);
+
+    // Default background rect color to white if set to "transparent" so it forces to overlay text
+    _secondaryCtx.fillStyle = ellipsisObj.backcolor === "transparent" ? "#FFF" : ellipsisObj.backcolor;
+    // Draw the background rect onto the canvas so it overlays the text
+    _secondaryCtx.fillRect(MAX_CANVAS_SIZE - ellipsisWidth, -(rectHeight/2), ellipsisWidth, rectHeight);
+
+    // Draw the ellipsis text onto the canvas overlaying background rect
+    _secondaryCtx.fillStyle = ellipsisObj.foreColor;
+    _secondaryCtx.fillText("  ...  ", MAX_CANVAS_SIZE - ellipsisWidth, 0);
+
+    _secondaryCtx.restore();
+  }
+
   function draw() {
     _scrollerCtx.clearRect(0, 0, _scroller.width, _scroller.height);
     _scrollerCtx.drawImage(_secondary, _scrollerCtx.xpos, 0);
@@ -1511,9 +1565,10 @@ RiseVision.Common.Scroller = function (params) {
 
   function fillScroller() {
     var width = 0,
+      lastIndex = 0,
       index = 0;
 
-    _originalXpos = _xpos;
+    _originalXpos = (_oversizedCanvas) ? MAX_CANVAS_SIZE : _xpos;
 
     // Ensure there's enough text to fill the scroller.
     if (_items.length > 0) {
@@ -1526,7 +1581,12 @@ RiseVision.Common.Scroller = function (params) {
         }
 
         width = _xpos - _originalXpos;
-        index = (index === _items.length - 1) ? 0 : index + 1;
+        lastIndex = index;
+        index = (lastIndex === _items.length - 1) ? 0 : lastIndex + 1;
+      }
+
+      if (_oversizedCanvas) {
+        drawItem(_items[lastIndex], true);
       }
     }
   }
@@ -1598,6 +1658,7 @@ RiseVision.Common.Scroller = function (params) {
 
   function refresh(items) {
     _items = items;
+    _oversizedCanvas = false;
 
     initSecondaryCanvas();
   }
@@ -1649,7 +1710,7 @@ RiseVision.Common.LoggerUtils = (function() {
       json = params;
 
       if (json.file_url) {
-        json.file_format = getFileFormat(json.file_url);
+        json.file_format = params.file_format || getFileFormat(json.file_url);
       }
 
       json.company_id = companyId;
@@ -1920,7 +1981,7 @@ RiseVision.RSS = ( function( document, gadgets ) {
 
   function _noFeedItems() {
     var params = {
-      "event": "error",
+      "event": "warning",
       "event_details": "no feed items",
       "feed_url": _additionalParams.url
     };
@@ -2398,6 +2459,9 @@ RiseVision.RSS.RiseRSS = function( data ) {
         RiseVision.RSS.showError( "The feed URL <span class='error-link'>" + data.url + "</span> could not be found." );
       } else if ( errorDetails.toLowerCase() === "not a feed" ) {
         RiseVision.RSS.showError( "The URL provided is not an RSS feed." );
+      } else if ( errorDetails.indexOf( "403" ) > 0 && errorDetails.toLowerCase().indexOf( "forbidden" ) > 0 ) {
+        params.event_details = "feed request error";
+        RiseVision.RSS.showError( "Sorry, there was a problem requesting the RSS feed, please contact the owner of the RSS feed to resolve." );
       } else {
         RiseVision.RSS.showError( "Sorry, there was a problem with the RSS feed." );
       }
@@ -2832,7 +2896,7 @@ RiseVision.RSS.HorizontalScroll = function( params, content ) {
     scrollerElem.addEventListener( "scroller-oversized-canvas", function() {
 
       RiseVision.RSS.logEvent( {
-        "event": "error",
+        "event": "warning",
         "event_details": "canvas width is over the max size",
         "feed_url": params.url
       } );
@@ -3225,6 +3289,7 @@ RiseVision.RSS.Content = function( prefs, params ) {
       return true;
     }
   }
+
   /*
    *  Public Methods
    */
@@ -3503,13 +3568,20 @@ RiseVision.Common.Message = function (mainContainer, messageContainer) {
     RiseVision.RSS.stop();
   }
 
-  if ( id && id !== "" ) {
-    gadgets.rpc.register( "rscmd_play_" + id, play );
-    gadgets.rpc.register( "rscmd_pause_" + id, pause );
-    gadgets.rpc.register( "rscmd_stop_" + id, stop );
-    gadgets.rpc.register( "rsparam_set_" + id, configure );
-    gadgets.rpc.call( "", "rsparam_get", null, id, [ "companyId", "displayId", "additionalParams" ] );
+  function webComponentsReady() {
+    window.removeEventListener( "WebComponentsReady", webComponentsReady );
+
+    if ( id && id !== "" ) {
+      gadgets.rpc.register( "rscmd_play_" + id, play );
+      gadgets.rpc.register( "rscmd_pause_" + id, pause );
+      gadgets.rpc.register( "rscmd_stop_" + id, stop );
+      gadgets.rpc.register( "rsparam_set_" + id, configure );
+      gadgets.rpc.call( "", "rsparam_get", null, id, [ "companyId", "displayId", "additionalParams" ] );
+    }
   }
+
+  window.addEventListener( "WebComponentsReady", webComponentsReady );
+
 
 } )( window, document, gadgets );
 
