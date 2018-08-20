@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Page Widget</title>
+
+  <link rel="stylesheet" href="css/webpage.min.css"/>
+
+</head>
+<body>
+
+  <div id="container">
+    <div class="blocker"></div>
+  </div>
+
+  <div id="messageContainer"></div>
+
+  <script>
+    if (document.domain.indexOf("localhost") === -1) {
+      try {
+        document.domain = "risevision.com";
+      } catch (err) {
+        // can't set document.domain, risevision.com not an accepted suffix of current document domain
+      }
+    }
+  </script>
+
+  <!-- build:e2egadgets -->
+  <script src="gadgets/gadgets.min.js"></script>
+  
+
+  <script src="js/widget.min.js"></script>
+</body>
+</html>
