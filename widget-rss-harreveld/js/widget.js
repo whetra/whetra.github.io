@@ -3517,7 +3517,8 @@ RiseVision.Common.Message = function (mainContainer, messageContainer) {
   "use strict";
 
   var prefs = new gadgets.Prefs(),
-    id = prefs.getString( "id" );
+    id = prefs.getString( "id" ),
+    webComponentsReadyIntervalId = 0;
 
   // Disable context menu (right click menu)
   window.oncontextmenu = function() {
@@ -3570,6 +3571,7 @@ RiseVision.Common.Message = function (mainContainer, messageContainer) {
 
   function webComponentsReady() {
     window.removeEventListener( "WebComponentsReady", webComponentsReady );
+    clearTimeout( webComponentsReadyIntervalId );
 
     if ( id && id !== "" ) {
       gadgets.rpc.register( "rscmd_play_" + id, play );
@@ -3580,8 +3582,12 @@ RiseVision.Common.Message = function (mainContainer, messageContainer) {
     }
   }
 
+  // in Chrome WebComponentsReady is never fired, because in webcomponentsjs, function bootstrap,
+  // the callback of requestAnimationFrame is called after gadgets.rpc.register for some reason
+  // in Android (and Firefox) WebComponentsReady does get fired
+  // so for Chrome we do setTimeout and for Android we do addEventListener
+  webComponentsReadyIntervalId = setTimeout( webComponentsReady, 2000 );
   window.addEventListener( "WebComponentsReady", webComponentsReady );
-
 
 } )( window, document, gadgets );
 

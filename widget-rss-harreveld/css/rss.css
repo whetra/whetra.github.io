@@ -147,34 +147,24 @@ body {
 }
 
 #layout-poster {
-  display: inline-block;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  margin: 0px; padding: 0px;
+  padding-left: 148px; /* (980−(3.25*210))/2 */
+  padding-top: 40px; /* (1052-(3.25*297))/2 */
 }
 
-#layout-poster .poster {
-  position: relative;
-  width: 630px; height: 891px;
+#layout-poster .item {
+  clear:both;
   margin: 0px; padding: 0px;
   background: rgba(0, 0, 0, 0.6);
   border: 4px solid transparent;
   border-radius: 8px;
-
-  /* to center image: */
-  display: table-cell;
-  vertical-align: middle;
+  display: inline-block;
 }
 
 #layout-poster .image {
-  width: 100%;
-  margin: 0px; padding: 0px;
-  /* or use:
-  position: absolute;
-  width: 100%; height: 100%;
-  margin: 0px; padding: 0px;
-  object-fit: contain; */
+  width: 683px; /* 3.25*210 */
+  max-height: 1000px; /* 3.25*297+extra */
+  display: block; /* removes the extra pixels at bottom of image */
 }
 
 #layout-4x1 .textWrapper {
