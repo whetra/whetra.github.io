@@ -46,7 +46,15 @@
             <div class="form-group">
               <url-field id="pageUrl" name="pageUrl" url="settings.additionalParams.url" hide-storage="hide"
                          ng-model="urlentry" valid url-input init-empty></url-field>
-              <p ng-if="!noXFrameOptions" class="text-danger">{{ "widget-web-page.warning.xframe.message" | translate }} <a ng-href="https://developer.mozilla.org/en-US/docs/Web/HTTP/X-Frame-Options" target="_blank">{{ "widget-web-page.warning.xframe.anchor" | translate}}</a>.</p>
+              <p ng-if="!noXFrameOptions || !noFrameAncestors" class="text-danger">
+                {{ "widget-web-page.warning.xframe.message" | translate }}
+                <a ng-if="!noXFrameOptions" target="_blank"
+                  ng-href="https://developer.mozilla.org/en-US/docs/Web/HTTP/X-Frame-Options"
+                >{{ "widget-web-page.warning.xframe.anchor" | translate }}</a
+                ><a ng-if="!noFrameAncestors" target="_blank"
+                  ng-href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/frame-ancestors"
+                >{{ "widget-web-page.warning.frameAncestors.anchor" | translate }}</a>.
+              </p>
               <p ng-if="isPreviewUrl" class="text-danger">
                 {{ "widget-web-page.warning.preview" | translate }}
               </p>

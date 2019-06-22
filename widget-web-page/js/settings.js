@@ -11211,7 +11211,7 @@ module.run(["$templateCache", function($templateCache) {
 
             switch(fileType) {
               case "image":
-                extensions = [".jpg", ".jpeg", ".png", ".bmp", ".svg", ".gif"];
+                extensions = [".jpg", ".jpeg", ".png", ".bmp", ".svg", ".gif", ".webp"];
                 break;
               case "video":
                 extensions = [".webm", ".mp4", ".ogv", ".ogg"];
@@ -11264,7 +11264,7 @@ module.run(["$templateCache", function($templateCache) {
              Reasoning
              http://mathiasbynens.be/demo/url-regex */
 
-            urlRegExp = /^(?:(?:https?|ftp):\/\/)(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z\u00a1-\uffff0-9]+-?)*[a-z\u00a1-\uffff0-9]+)(?:\.(?:[a-z\u00a1-\uffff0-9]+-?)*[a-z\u00a1-\uffff0-9]+)*(?:\.(?:[a-z\u00a1-\uffff]{2,})))(?::\d{2,5})?(?:\/[^\s]*)?$/i; // jshint ignore:line
+            urlRegExp = /^(?:(?:(?:https?|ftp):)?\/\/)(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z0-9\u00a1-\uffff][a-z0-9\u00a1-\uffff_-]{0,62})?[a-z0-9\u00a1-\uffff]\.)+(?:[a-z\u00a1-\uffff]{2,}\.?))(?::\d{2,5})?(?:[/?#]\S*)?$/i; // jshint ignore:line
 
             // Add http:// if no protocol parameter exists
             if (value.indexOf("://") === -1) {
@@ -11867,16 +11867,19 @@ angular.module("risevision.widget.common")
 })(angular);
 
 angular.module( "risevision.widget.web-page.settings" )
-  .controller( "webPageSettingsController", [ "$scope", "$log", "xframeOptions",
-    function( $scope, $log, xframeOptions ) {
+  .controller( "webPageSettingsController", [ "$scope", "$log", "responseHeaderAnalyzer",
+    function( $scope, $log, responseHeaderAnalyzer ) {
 
+      $scope.noFrameAncestors = true;
       $scope.noXFrameOptions = true;
       $scope.isPreviewUrl = false;
       $scope.urlInput = false;
 
       $scope.validateXFrame = function() {
-        xframeOptions.hasOptions( $scope.settings.additionalParams.url ).then( function( value ) {
-          $scope.noXFrameOptions = !value;
+        responseHeaderAnalyzer.getOptions( $scope.settings.additionalParams.url )
+        .then( function( options ) {
+          $scope.noFrameAncestors = !options.includes( "frame-ancestors" );
+          $scope.noXFrameOptions = !options.includes( "X-Frame-Options" );
         } );
       };
 
@@ -11902,7 +11905,8 @@ angular.module( "risevision.widget.web-page.settings" )
           $scope.validateXFrame();
         } else {
           if ( typeof newVal !== "undefined" ) {
-            // ensure warning message doesn't get shown while url field is receiving input
+            // ensure warning messages don't get shown while url field is receiving input
+            $scope.noFrameAncestors = true;
             $scope.noXFrameOptions = true;
 
             if ( newVal !== "" ) {
@@ -11950,29 +11954,47 @@ angular.module( "risevision.widget.web-page.settings" )
   } );
 
 angular.module( "risevision.widget.web-page.settings" )
-  .factory( "xframeOptions", [ "$log", "$http", function( $log, $http ) {
+  .factory( "responseHeaderAnalyzer", [ "$log", "$http", function( $log, $http ) {
 
     var factory = {
-      hasOptions: function( url ) {
+      getOptions: function( url ) {
 
         return $http( {
           method: "GET",
           url: "https://proxy.risevision.com/" + url
         } ).then( function( response ) {
-          var xframe;
+
+          if ( !response ) {
+            return [];
+          }
 
           $log.debug( response.headers() );
 
-          if ( response && response.headers() ) {
-            xframe = response.headers( "X-Frame-Options" );
-            return xframe !== null && xframe.indexOf( "ALLOW-FROM" ) === -1;
-          }
-
+          return response.headers() ? extractOptionsFrom( response ) : [];
         }, function( response ) {
           $log.debug( "Webpage request failed with status code " + response.status + ": " + response.statusText );
+
+          return [];
         } );
       }
     };
+
+    function extractOptionsFrom( response ) {
+      var header,
+        options = [];
+
+      header = response.headers( "X-Frame-Options" );
+      if ( header !== null && header.indexOf( "ALLOW-FROM" ) === -1 ) {
+        options.push( "X-Frame-Options" );
+      }
+
+      header = response.headers( "content-security-policy" );
+      if ( header !== null && header.indexOf( "frame-ancestors" ) > 0 ) {
+        options.push( "frame-ancestors" );
+      }
+
+      return options;
+    }
 
     return factory;
   } ] );
